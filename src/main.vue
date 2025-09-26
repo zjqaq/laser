@@ -1,10 +1,10 @@
 <template>
-  <div class="page-container min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col items-center p-4 md:p-6">
+  <div class="page-container min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col items-center p-2 md:p-4 lg:p-6">
     <!-- 标题 -->
-    <h1 class="page-title mb-6 mt-2 tracking-tight">激光队列编排系统</h1>
+    <h1 class="page-title mb-4 mt-1 tracking-tight">激光队列编排系统</h1>
 
     <!-- 预设阵型按钮组 -->
-    <div class="preset-btn-group mb-6 w-full max-w-4xl">
+    <div class="preset-btn-group mb-4 w-full max-w-4xl">
       <button
         @click="selectShape('rect')"
         :class="['preset-btn', activeShape === 'rect' ? 'active' : '']"
@@ -31,8 +31,8 @@
       </button>
     </div>
 
-    <!-- 自定义画布区域 -->
-    <div class="canvas-wrapper w-full max-w-4xl mb-3 flex-1">
+    <!-- 自定义画布区域 - 减小底部边距 -->
+    <div class="canvas-wrapper w-full max-w-4xl mb-1 flex-1">
       <p class="canvas-title">自定义阵型（点击画布添加/删除点，最多8个）</p>
       <div class="canvas-container">
         <canvas
@@ -44,8 +44,8 @@
       </div>
     </div>
 
-    <!-- 操作按钮组 -->
-    <div class="action-btn-group mt-1 mb-4 w-full max-w-4xl">
+    <!-- 操作按钮组 - 减小顶部边距 -->
+    <div class="action-btn-group mt-0 mb-3 w-full max-w-4xl">
       <button
         @click="clearShape"
         class="action-btn clear-btn"
@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-// 脚本部分保持不变
+// 脚本部分保持不变，与原代码一致
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 
 // 预设阵型的逻辑坐标（基于16×16画布，原点在左上角）
@@ -431,31 +431,31 @@ html, body {
 
 /* 全局容器样式：最大化填充页面但不溢出 */
 .page-container {
-  min-height: 100vh;
+  min-height: 50vh;
   width: 100%;
-  padding: 1rem 1.5rem;
   margin: 0 auto;
   max-width: 1400px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.2rem;
 }
 
-/* 预设阵型按钮：保证在同一行 */
+/* 预设阵型按钮：响应式布局 */
 .preset-btn-group {
   display: flex;
-  gap: 0.8rem;
+  flex-wrap: wrap; /* 允许在小屏幕换行 */
+  gap: 0.5rem;
   width: 100%;
   margin: 0 auto;
-  overflow: hidden;
+  padding: 0 0.25rem;
 }
 .preset-btn {
   flex: 1;
-  min-width: 80px;
-  padding: 0.8rem 1rem;
-  border-radius: 0.8rem;
-  font-size: clamp(1rem, 2vw, 1.25rem);
+  min-width: calc(50% - 0.5rem); /* 移动端每行显示2个按钮 */
+  padding: 0.6rem 0.5rem;
+  border-radius: 0.6rem;
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
   font-weight: 600;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
@@ -463,6 +463,15 @@ html, body {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   white-space: nowrap;
 }
+
+/* 适配平板及以上设备 - 预设按钮每行4个 */
+@media (min-width: 768px) {
+  .preset-btn {
+    min-width: auto;
+    flex: 1;
+  }
+}
+
 /* 未选中状态 */
 .preset-btn:not(.active) {
   background: #ffffff;
@@ -493,11 +502,12 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  margin: 0 auto;
+  gap: 0.4rem; /* 将0.6rem减小为0.4rem */
+  margin-bottom: 0 !important; /* 强制底部外边距为0 */
+  padding: 0 0.25rem;
 }
 .canvas-title {
-  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
   color: #475569;
   font-weight: 500;
   text-align: center;
@@ -505,16 +515,24 @@ html, body {
 }
 .canvas-container {
   width: 100%;
-  padding-top: 100%;
+  padding-top: 100%; /* 保持正方形比例 */
   position: relative;
   background: #ffffff;
-  border-radius: 1rem;
+  border-radius: 0.8rem;
   box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.08), 0 4px 8px -1px rgba(0, 0, 0, 0.04);
   border: 1px solid #f1f5f9;
   overflow: hidden;
   transition: all 0.3s ease;
-  max-height: 70vh; /* 限制最大高度 */
+  max-height: 60vh; /* 移动端降低最大高度 */
 }
+
+/* 平板及以上设备提高画布最大高度 */
+@media (min-width: 768px) {
+  .canvas-container {
+    max-height: 70vh;
+  }
+}
+
 /* 绝对定位画布，使其填充容器 */
 .canvas-container canvas {
   position: absolute;
@@ -525,6 +543,7 @@ html, body {
 }
 .canvas-container:hover {
   box-shadow: 0 12px 24px -2px rgba(0, 0, 0, 0.12), 0 6px 12px -1px rgba(0, 0, 0, 0.06);
+  padding-bottom: 0 !important;
 }
 /* 画布hover反馈 */
 canvas:hover {
@@ -532,20 +551,22 @@ canvas:hover {
   background-color: #fefeff;
 }
 
-/* 操作按钮组：保证在同一行 */
+/* 操作按钮组：响应式布局 */
 .action-btn-group {
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
   width: 100%;
   justify-content: center;
-  padding-bottom: 1rem;
-  margin: 0 auto;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+
 }
 .action-btn {
-  min-width: 140px;
-  padding: 0.8rem 1.5rem;
-  border-radius: 0.8rem;
-  font-size: clamp(1rem, 2vw, 1.25rem);
+  flex: 1;
+  min-width: 100px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
   font-weight: 600;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
@@ -576,12 +597,25 @@ canvas:hover {
 
 /* 标题样式优化：更突出+适配屏幕 */
 .page-title {
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
   font-weight: 700;
   color: #2563eb;
   text-align: center;
   margin: 0;
   letter-spacing: -0.02em;
   text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+}
+
+/* 针对超小屏幕优化（如手机竖屏） */
+@media (max-width: 360px) {
+  .action-btn {
+    min-width: auto;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .page-container {
+    gap: 0.6rem;
+  }
 }
 </style>
