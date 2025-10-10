@@ -31,7 +31,7 @@
       </button>
     </div>
 
-    <!-- 自定义画布区域 - 减小底部边距 -->
+    <!-- 自定义画布区域 -->
     <div class="canvas-wrapper w-full max-w-4xl mb-1 flex-1">
       <p class="canvas-title">自定义阵型（点击画布添加/删除点，最多8个）</p>
       <div class="canvas-container">
@@ -44,7 +44,25 @@
       </div>
     </div>
 
-    <!-- 操作按钮组 - 减小顶部边距 -->
+    <!-- 变换操作按钮组 -->
+    <div class="transform-btn-group mt-2 mb-2 w-full max-w-4xl">
+      <button
+        @click="showTranslateDialog = true"
+        class="transform-btn translate-btn"
+        :disabled="!hasPoints"
+      >
+        平移
+      </button>
+      <button
+        @click="showRotateDialog = true"
+        class="transform-btn rotate-btn"
+        :disabled="!hasPoints"
+      >
+        旋转
+      </button>
+    </div>
+
+    <!-- 操作按钮组 -->
     <div class="action-btn-group mt-0 mb-3 w-full max-w-4xl">
       <button
         @click="clearShape"
@@ -59,12 +77,75 @@
         确认阵型
       </button>
     </div>
+
+    <!-- 平移弹窗 -->
+    <div v-if="showTranslateDialog" class="dialog-overlay">
+      <div class="dialog">
+        <h3 class="dialog-title">平移设置</h3>
+        <div class="dialog-content">
+          <div class="translate-controls">
+            <div class="direction-group">
+              <label class="direction-label">方向：</label>
+              <div class="direction-buttons">
+                <button @click="translateDirection = 'up'" :class="translateDirection === 'up' ? 'active' : ''">上</button>
+                <button @click="translateDirection = 'down'" :class="translateDirection === 'down' ? 'active' : ''">下</button>
+                <button @click="translateDirection = 'left'" :class="translateDirection === 'left' ? 'active' : ''">左</button>
+                <button @click="translateDirection = 'right'" :class="translateDirection === 'right' ? 'active' : ''">右</button>
+              </div>
+            </div>
+            <div class="steps-control">
+              <label>平移格数：</label>
+              <input
+                type="number"
+                v-model.number="translateSteps"
+                min="1"
+                max="5"
+                class="steps-input"
+              >
+            </div>
+          </div>
+        </div>
+        <div class="dialog-buttons">
+          <button @click="showTranslateDialog = false" class="dialog-btn cancel-btn">取消</button>
+          <button @click="applyTranslate" class="dialog-btn confirm-btn">应用</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 旋转弹窗 -->
+    <div v-if="showRotateDialog" class="dialog-overlay">
+      <div class="dialog">
+        <h3 class="dialog-title">旋转设置</h3>
+        <div class="dialog-content">
+          <div class="rotate-controls">
+            <div class="rotation-direction">
+              <label class="direction-label">方向：</label>
+              <div class="direction-buttons">
+                <button @click="rotateDirection = 'clockwise'" :class="rotateDirection === 'clockwise' ? 'active' : ''">顺时针</button>
+                <button @click="rotateDirection = 'counterclockwise'" :class="rotateDirection === 'counterclockwise' ? 'active' : ''">逆时针</button>
+              </div>
+            </div>
+            <div class="angle-control">
+              <label>旋转角度：</label>
+              <select v-model="rotateAngle" class="angle-select">
+                <option value="90">90°</option>
+                <option value="180">180°</option>
+                <option value="270">270°</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-buttons">
+          <button @click="showRotateDialog = false" class="dialog-btn cancel-btn">取消</button>
+          <button @click="applyRotate" class="dialog-btn confirm-btn">应用</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-// 脚本部分保持不变，与原代码一致
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 
 // 预设阵型的逻辑坐标（基于16×16画布，原点在左上角）
 const presetShapes = {
@@ -116,20 +197,47 @@ const customPoints = ref([]); // 自定义绘制的点
 const canvasRef = ref(null); // Canvas DOM 引用
 const ctx = ref(null); // Canvas 2D 上下文
 const canvasSize = ref({ width: 16, height: 16 }); // 画布逻辑尺寸（16×16）
-const canvasHeight = ref(0); // 画布实际显示高度（将在初始化时设置为与宽度相同）
+const canvasHeight = ref(0); // 画布实际显示高度
 const canvasLoaded = ref(false); // 画布是否已加载的标志
+
+// 平移旋转相关状态
+const showTranslateDialog = ref(false);
+const showRotateDialog = ref(false);
+const translateDirection = ref('right');
+const translateSteps = ref(1);
+const rotateDirection = ref('clockwise');
+const rotateAngle = ref('90');
+
+// 计算属性：是否有可操作的点
+const hasPoints = computed(() => {
+  return activeShape.value ? presetShapes[activeShape.value].length > 0 : customPoints.value.length > 0;
+});
+
+// 获取当前所有点
+const getCurrentPoints = () => {
+  return activeShape.value ? [...presetShapes[activeShape.value]] : [...customPoints.value];
+};
+
+// 设置当前所有点
+const setCurrentPoints = (points) => {
+  if (activeShape.value) {
+    // 对于预设形状，复制到自定义点并切换到自定义模式
+    customPoints.value = points;
+    activeShape.value = null;
+  } else {
+    customPoints.value = points;
+  }
+};
 
 // 页面挂载时初始化画布
 onMounted(() => {
-  // 使用nextTick确保DOM已完全渲染
   nextTick(() => {
-    // 增加初始检查和重试机制
     checkAndInitCanvas();
     window.addEventListener('resize', handleResize);
   });
 });
 
-// 监听canvasRef变化，确保DOM元素就绪后初始化
+// 监听canvasRef变化
 watch(canvasRef, (newVal) => {
   if (newVal && !canvasLoaded.value) {
     checkAndInitCanvas();
@@ -141,12 +249,11 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
-// 检查并初始化画布，增加多重保障
+// 检查并初始化画布
 const checkAndInitCanvas = () => {
   if (canvasRef.value) {
     initCanvas();
   } else {
-    // 如果canvas还未准备好，最多重试15次，每次间隔100ms
     let retries = 0;
     const interval = setInterval(() => {
       if (canvasRef.value || retries >= 15) {
@@ -160,43 +267,33 @@ const checkAndInitCanvas = () => {
   }
 };
 
-// 初始化画布 - 优化初始加载时网格显示
+// 初始化画布
 const initCanvas = () => {
   const canvas = canvasRef.value;
   if (!canvas) return;
 
-  // 让画布保持“方形”并自适应容器宽度
   const container = canvas.parentElement;
   if (!container) return;
 
-  // 强制触发重排以获取准确尺寸
   container.getBoundingClientRect();
-  // 计算容器最大可用宽度（考虑padding）
   let containerWidth = Math.min(
     container.clientWidth,
-    window.innerWidth - 40 // 减去左右边距，避免溢出
+    window.innerWidth - 40
   );
 
-  // 确保容器宽度有效，即使为0也设置默认宽度保证初始网格显示
   if (containerWidth <= 0) {
-    containerWidth = 300; // 设置默认宽度，确保初始网格能显示
+    containerWidth = 300;
   }
 
-  // 设置画布为正方形
   canvas.width = containerWidth;
   canvas.height = containerWidth;
   canvasHeight.value = containerWidth;
   ctx.value = canvas.getContext('2d');
 
-  // 确保绘制函数被调用
   drawCanvas();
-
-  // 标记画布已加载
   canvasLoaded.value = true;
 
-  // 如果使用了默认宽度，启动重试机制调整到正确尺寸
   if (containerWidth === 300) {
-    // 增加重试次数限制，避免无限循环
     const maxRetries = 20;
     let retries = 0;
 
@@ -213,7 +310,7 @@ const initCanvas = () => {
         canvas.height = newWidth;
         canvasHeight.value = newWidth;
         ctx.value = canvas.getContext('2d');
-        drawCanvas(); // 调整尺寸后重新绘制
+        drawCanvas();
       } else {
         setTimeout(retryInit, 100);
       }
@@ -230,35 +327,29 @@ const handleResize = () => {
   }
 };
 
-// 绘制画布（清空 + 画网格 + 画点）
+// 绘制画布
 const drawCanvas = () => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
 
-  // 1. 清空画布
   ctx.value.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 2. 绘制辅助网格（包含横线和竖线）
   drawGrid();
 
-  // 3. 绘制对应阵型的点
   if (activeShape.value) {
-    drawPoints(presetShapes[activeShape.value]); // 绘制预设阵型
+    drawPoints(presetShapes[activeShape.value]);
   } else {
-    drawPoints(customPoints.value); // 绘制自定义阵型
+    drawPoints(customPoints.value);
   }
 };
 
-// 绘制辅助网格（包含横线）
+// 绘制辅助网格
 const drawGrid = () => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
 
-  // 绘制浅色背景
   ctx.value.fillStyle = '#f9fafb';
   ctx.value.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 绘制网格线
   ctx.value.strokeStyle = '#e2e8f0';
   ctx.value.lineWidth = 1;
 
@@ -273,7 +364,7 @@ const drawGrid = () => {
     ctx.value.stroke();
   }
 
-  // 画横线（初始加载就会显示）
+  // 画横线
   for (let y = 0; y <= canvasSize.value.height; y++) {
     ctx.value.beginPath();
     ctx.value.moveTo(0, y * cellHeight);
@@ -292,7 +383,7 @@ const drawGrid = () => {
   ctx.value.stroke();
 };
 
-// 绘制点（通用方法：接收点数组，绘制红色圆点）
+// 绘制点
 const drawPoints = (points) => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value || !points.length) return;
@@ -303,28 +394,23 @@ const drawPoints = (points) => {
   points.forEach(({ x, y }) => {
     const px = x * cellWidth;
     const py = y * cellHeight;
-    // 增大圆点半径，使其更明显
     const radius = Math.min(cellWidth, cellHeight) / 2.5;
 
-    // 添加阴影效果
     ctx.value.shadowColor = 'rgba(220, 38, 38, 0.3)';
     ctx.value.shadowBlur = 5;
     ctx.value.shadowOffsetX = 0;
     ctx.value.shadowOffsetY = 0;
 
-    // 绘制点的外圈
     ctx.value.fillStyle = 'white';
     ctx.value.beginPath();
     ctx.value.arc(px, py, radius, 0, Math.PI * 2);
     ctx.value.fill();
 
-    // 绘制点的内圈，使用更鲜艳的颜色
     ctx.value.fillStyle = '#dc2626';
     ctx.value.beginPath();
     ctx.value.arc(px, py, radius * 0.7, 0, Math.PI * 2);
     ctx.value.fill();
 
-    // 重置阴影
     ctx.value.shadowColor = 'transparent';
   });
 };
@@ -332,7 +418,7 @@ const drawPoints = (points) => {
 // 切换预设阵型
 const selectShape = (shape) => {
   activeShape.value = shape;
-  customPoints.value = []; // 切换预设时清空自定义点
+  customPoints.value = [];
   drawCanvas();
 };
 
@@ -343,12 +429,12 @@ const clearShape = () => {
   drawCanvas();
 };
 
-// 画布点击事件（自定义绘制逻辑：添加/删除点）
+// 画布点击事件
 const handleCanvasClick = (e) => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
 
-  activeShape.value = null; // 点击画布时，切换到“自定义模式”
+  activeShape.value = null;
 
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -357,22 +443,20 @@ const handleCanvasClick = (e) => {
   const cellWidth = canvas.width / canvasSize.value.width;
   const cellHeight = canvas.height / canvasSize.value.height;
 
-  // 计算“逻辑坐标”（四舍五入到最近的格子）
   const logicX = Math.round(x / cellWidth);
   const logicY = Math.round(y / cellHeight);
 
-  // 检查是否点击了已存在的点（用于“删除”）
   const pointIndex = customPoints.value.findIndex(
     (p) => p.x === logicX && p.y === logicY
   );
 
   if (pointIndex !== -1) {
-    customPoints.value.splice(pointIndex, 1); // 删除点
+    customPoints.value.splice(pointIndex, 1);
   } else if (customPoints.value.length < 8) {
-    customPoints.value.push({ x: logicX, y: logicY }); // 添加新点（最多8个）
+    customPoints.value.push({ x: logicX, y: logicY });
   }
 
-  drawCanvas(); // 重绘画布
+  drawCanvas();
 };
 
 // 确认自定义阵型
@@ -387,18 +471,101 @@ const confirmCustom = () => {
   console.log('确认的阵型坐标：', points);
   alert('已确认阵型，坐标信息已打印到控制台～');
 };
+
+// 应用平移
+const applyTranslate = () => {
+  const points = getCurrentPoints();
+  if (!points.length) return;
+
+  let newPoints = [];
+
+  // 根据方向平移点
+  switch (translateDirection.value) {
+    case 'up':
+      newPoints = points.map(point => ({
+        x: point.x,
+        y: Math.max(0, point.y - translateSteps.value) // 确保不超出上边界
+      }));
+      break;
+    case 'down':
+      newPoints = points.map(point => ({
+        x: point.x,
+        y: Math.min(canvasSize.value.height - 1, point.y + translateSteps.value) // 确保不超出下边界
+      }));
+      break;
+    case 'left':
+      newPoints = points.map(point => ({
+        x: Math.max(0, point.x - translateSteps.value), // 确保不超出左边界
+        y: point.y
+      }));
+      break;
+    case 'right':
+      newPoints = points.map(point => ({
+        x: Math.min(canvasSize.value.width - 1, point.x + translateSteps.value), // 确保不超出右边界
+        y: point.y
+      }));
+      break;
+  }
+
+  setCurrentPoints(newPoints);
+  showTranslateDialog.value = false;
+  drawCanvas();
+};
+
+// 应用旋转
+const applyRotate = () => {
+  const points = getCurrentPoints();
+  if (!points.length) return;
+
+  // 计算旋转中心（画布中心）
+  const centerX = canvasSize.value.width / 2;
+  const centerY = canvasSize.value.height / 2;
+
+  // 转换角度为弧度
+  let angle = (parseInt(rotateAngle.value) * Math.PI) / 180;
+  // 逆时针旋转需要取负角度
+  if (rotateDirection.value === 'counterclockwise') {
+    angle = -angle;
+  }
+
+  // 对每个点应用旋转变换
+  const newPoints = points.map(point => {
+    // 平移到原点（相对于中心）
+    const x = point.x - centerX;
+    const y = point.y - centerY;
+
+    // 旋转公式
+    const rotatedX = x * Math.cos(angle) - y * Math.sin(angle);
+    const rotatedY = x * Math.sin(angle) + y * Math.cos(angle);
+
+    // 平移回原坐标系并四舍五入
+    return {
+      x: Math.round(rotatedX + centerX),
+      y: Math.round(rotatedY + centerY)
+    };
+  });
+
+  // 确保所有点都在画布范围内
+  const clampedPoints = newPoints.map(point => ({
+    x: Math.max(0, Math.min(canvasSize.value.width - 1, point.x)),
+    y: Math.max(0, Math.min(canvasSize.value.height - 1, point.y))
+  }));
+
+  setCurrentPoints(clampedPoints);
+  showRotateDialog.value = false;
+  drawCanvas();
+};
 </script>
 
 <style scoped>
-/* 防止触摸画布时的默认滑动行为 */
+/* 原有样式保持不变 */
 canvas {
   touch-action: none;
   width: 100% !important;
   height: 100% !important;
-  display: block; /* 解决画布额外空白问题 */
+  display: block;
 }
 
-/* 全局样式重置 */
 * {
   margin: 0;
   padding: 0;
@@ -406,12 +573,11 @@ canvas {
 }
 
 html, body {
-  overflow-x: hidden; /* 防止水平滚动条 */
+  overflow-x: hidden;
   width: 100%;
   height: 100%;
 }
 
-/* 自定义滚动条（保留并优化） */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -429,7 +595,6 @@ html, body {
   background: #94a3b8;
 }
 
-/* 全局容器样式：最大化填充页面但不溢出 */
 .page-container {
   min-height: 50vh;
   width: 100%;
@@ -441,10 +606,9 @@ html, body {
   gap: 0.2rem;
 }
 
-/* 预设阵型按钮：响应式布局 */
 .preset-btn-group {
   display: flex;
-  flex-wrap: wrap; /* 允许在小屏幕换行 */
+  flex-wrap: wrap;
   gap: 0.5rem;
   width: 100%;
   margin: 0 auto;
@@ -452,7 +616,7 @@ html, body {
 }
 .preset-btn {
   flex: 1;
-  min-width: calc(50% - 0.5rem); /* 移动端每行显示2个按钮 */
+  min-width: calc(50% - 0.5rem);
   padding: 0.6rem 0.5rem;
   border-radius: 0.6rem;
   font-size: clamp(0.9rem, 3vw, 1.1rem);
@@ -464,7 +628,6 @@ html, body {
   white-space: nowrap;
 }
 
-/* 适配平板及以上设备 - 预设按钮每行4个 */
 @media (min-width: 768px) {
   .preset-btn {
     min-width: auto;
@@ -472,7 +635,6 @@ html, body {
   }
 }
 
-/* 未选中状态 */
 .preset-btn:not(.active) {
   background: #ffffff;
   color: #334155;
@@ -483,7 +645,6 @@ html, body {
   box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.08), 0 3px 5px -1px rgba(0, 0, 0, 0.04);
   transform: translateY(-2px) scale(1.02);
 }
-/* 选中状态：渐变+强阴影 */
 .preset-btn.active {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #ffffff;
@@ -495,15 +656,14 @@ html, body {
   box-shadow: 0 10px 20px -1px rgba(37, 99, 235, 0.3), 0 5px 10px -1px rgba(37, 99, 235, 0.2);
 }
 
-/* 画布区域：保持正方形并自适应 */
 .canvas-wrapper {
   width: 100%;
   max-width: 100%;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem; /* 将0.6rem减小为0.4rem */
-  margin-bottom: 0 !important; /* 强制底部外边距为0 */
+  gap: 0.4rem;
+  margin-bottom: 0 !important;
   padding: 0 0.25rem;
 }
 .canvas-title {
@@ -515,7 +675,7 @@ html, body {
 }
 .canvas-container {
   width: 100%;
-  padding-top: 100%; /* 保持正方形比例 */
+  padding-top: 100%;
   position: relative;
   background: #ffffff;
   border-radius: 0.8rem;
@@ -523,17 +683,15 @@ html, body {
   border: 1px solid #f1f5f9;
   overflow: hidden;
   transition: all 0.3s ease;
-  max-height: 60vh; /* 移动端降低最大高度 */
+  max-height: 60vh;
 }
 
-/* 平板及以上设备提高画布最大高度 */
 @media (min-width: 768px) {
   .canvas-container {
     max-height: 70vh;
   }
 }
 
-/* 绝对定位画布，使其填充容器 */
 .canvas-container canvas {
   position: absolute;
   top: 0;
@@ -545,13 +703,11 @@ html, body {
   box-shadow: 0 12px 24px -2px rgba(0, 0, 0, 0.12), 0 6px 12px -1px rgba(0, 0, 0, 0.06);
   padding-bottom: 0 !important;
 }
-/* 画布hover反馈 */
 canvas:hover {
   cursor: crosshair;
   background-color: #fefeff;
 }
 
-/* 操作按钮组：响应式布局 */
 .action-btn-group {
   display: flex;
   gap: 0.8rem;
@@ -574,7 +730,6 @@ canvas:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   white-space: nowrap;
 }
-/* 清除按钮：红色系，明确警示 */
 .clear-btn {
   background: linear-gradient(135deg, #f87171, #ef4444);
   color: #ffffff;
@@ -584,7 +739,6 @@ canvas:hover {
   box-shadow: 0 8px 16px -1px rgba(239, 68, 68, 0.25);
   transform: translateY(-2px) scale(1.03);
 }
-/* 确认按钮：绿色系，明确正向反馈 */
 .confirm-btn {
   background: linear-gradient(135deg, #4ade80, #22c55e);
   color: #ffffff;
@@ -595,7 +749,6 @@ canvas:hover {
   transform: translateY(-2px) scale(1.03);
 }
 
-/* 标题样式优化：更突出+适配屏幕 */
 .page-title {
   font-size: clamp(1.5rem, 6vw, 2.5rem);
   font-weight: 700;
@@ -606,7 +759,6 @@ canvas:hover {
   text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
 }
 
-/* 针对超小屏幕优化（如手机竖屏） */
 @media (max-width: 360px) {
   .action-btn {
     min-width: auto;
@@ -617,5 +769,183 @@ canvas:hover {
   .page-container {
     gap: 0.6rem;
   }
+}
+
+/* 新增的变换按钮样式 */
+.transform-btn-group {
+  display: flex;
+  gap: 0.8rem;
+  width: 100%;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+.transform-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
+}
+
+.transform-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.translate-btn {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: #ffffff;
+}
+
+.translate-btn:not(:disabled):hover {
+  background: linear-gradient(135deg, #93c5fd, #2563eb);
+  box-shadow: 0 8px 16px -1px rgba(59, 130, 246, 0.25);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.rotate-btn {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #ffffff;
+}
+
+.rotate-btn:not(:disabled):hover {
+  background: linear-gradient(135deg, #c4b5fd, #6d28d9);
+  box-shadow: 0 8px 16px -1px rgba(124, 58, 237, 0.25);
+  transform: translateY(-2px) scale(1.03);
+}
+
+/* 弹窗样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.dialog {
+  background-color: white;
+  border-radius: 0.8rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.dialog-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1e293b;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.dialog-content {
+  padding: 1.5rem;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dialog-btn {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 0.4rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.cancel-btn:hover {
+  background-color: #e2e8f0;
+}
+
+/* 平移控制样式 */
+.translate-controls, .rotate-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.direction-group, .rotation-direction {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.direction-label {
+  font-weight: 500;
+  color: #334155;
+}
+
+.direction-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.direction-buttons button {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.direction-buttons button.active {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.steps-control, .angle-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.steps-control label, .angle-control label {
+  font-weight: 500;
+  color: #334155;
+  min-width: 80px;
+}
+
+.steps-input, .angle-select {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #e2e8f0;
+}
+
+.angle-select {
+  background-color: white;
 }
 </style>
