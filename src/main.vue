@@ -147,47 +147,48 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 
-// 预设阵型的逻辑坐标（基于16×16画布，原点在左上角）
+// 预设阵型的逻辑坐标（基于10×10画布，原点在左上角）
 const presetShapes = {
   rect: [
-    { x: 5, y: 7 },
-    { x: 7, y: 7 },
-    { x: 9, y: 7 },
-    { x: 11, y: 7 },
-    { x: 5, y: 9 },
-    { x: 7, y: 9 },
-    { x: 9, y: 9 },
-    { x: 11, y: 9 },
+    { x: 3, y: 4 },
+    { x: 4, y: 4 },
+    { x: 5, y: 4 },
+    { x: 6, y: 4 },
+    { x: 3, y: 5 },
+    { x: 4, y: 5 },
+    { x: 5, y: 5 },
+    { x: 6, y: 5 },
   ],
   line: [
-    { x: 8, y: 8 },
-    { x: 9, y: 8 },
-    { x: 10, y: 8 },
-    { x: 11, y: 8 },
-    { x: 4, y: 8 },
-    { x: 5, y: 8 },
-    { x: 6, y: 8 },
-    { x: 7, y: 8 },
+    { x: 2, y: 5 },
+    { x: 3, y: 5 },
+    { x: 4, y: 5 },
+    { x: 5, y: 5 },
+    { x: 6, y: 5 },
+    { x: 7, y: 5 },
+    { x: 8, y: 5 },
   ],
   cross: [
-    { x: 8, y: 4 },
-    { x: 8, y: 6 },
-    { x: 8, y: 10 },
-    { x: 8, y: 12 },
-    { x: 4, y: 8 },
-    { x: 6, y: 8 },
-    { x: 10, y: 8 },
-    { x: 12, y: 8 },
+    // 竖方向4个点（x=5保持不变，y坐标变化）
+    { x: 5, y: 3 },
+    { x: 5, y: 4 },
+    { x: 5, y: 7 },
+    { x: 5, y: 6 },
+    // 横方向4个点（y=5保持不变，x坐标变化）
+    { x: 3, y: 5 },
+    { x: 4, y: 5 },
+    { x: 6, y: 5 },
+    { x: 7, y: 5 },
   ],
   circle: [
-    { x: 7, y: 6 },
-    { x: 9, y: 6 },
+    { x: 4, y: 3 },
+    { x: 6, y: 3 },
+    { x: 3, y: 4 },
+    { x: 3, y: 6 },
+    { x: 4, y: 7 },
     { x: 6, y: 7 },
-    { x: 6, y: 9 },
-    { x: 7, y: 10 },
-    { x: 9, y: 10 },
-    { x: 10, y: 7 },
-    { x: 10, y: 9 },
+    { x: 7, y: 4 },
+    { x: 7, y: 6 },
   ],
 };
 
@@ -196,7 +197,7 @@ const activeShape = ref(null); // 当前选中的预设阵型
 const customPoints = ref([]); // 自定义绘制的点
 const canvasRef = ref(null); // Canvas DOM 引用
 const ctx = ref(null); // Canvas 2D 上下文
-const canvasSize = ref({ width: 16, height: 16 }); // 画布逻辑尺寸（16×16）
+const canvasSize = ref({ width: 10, height: 10 }); // 画布逻辑尺寸（10×10）
 const canvasHeight = ref(0); // 画布实际显示高度
 const canvasLoaded = ref(false); // 画布是否已加载的标志
 
