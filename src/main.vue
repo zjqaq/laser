@@ -3,6 +3,16 @@
     <!-- 标题 -->
     <h1 class="page-title mb-4 mt-1 tracking-tight">激光队列编排系统</h1>
 
+    <!-- 新增的设置和校准按钮 -->
+    <div class="settings-calibration-buttons mb-4 w-full max-w-4xl flex gap-2">
+      <button @click="showSettingsDialog = true" class="settings-btn">
+        设置
+      </button>
+      <button @click="showCalibrationDialog = true" class="calibration-btn">
+        校准
+      </button>
+    </div>
+
     <!-- 预设阵型按钮组 -->
     <div class="preset-btn-group mb-4 w-full max-w-4xl">
       <button
@@ -141,11 +151,156 @@
         </div>
       </div>
     </div>
+
+    <!-- 新增的设置弹窗 -->
+    <div v-if="showSettingsDialog" class="dialog-overlay">
+      <div class="dialog settings-dialog">
+        <h3 class="dialog-title">系统设置</h3>
+        <div class="dialog-content">
+          <div class="settings-controls">
+            <div class="setting-item">
+              <label>高度：</label>
+              <div class="input-with-unit">
+                <input
+                  type="number"
+                  v-model.number="height"
+                  min="1"
+                  class="setting-input"
+                  step="0.1"
+                >
+                <span class="unit">厘米</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label>距离：</label>
+              <div class="input-with-unit">
+                <input
+                  type="number"
+                  v-model.number="distance"
+                  min="1"
+                  class="setting-input"
+                  step="0.1"
+                >
+                <span class="unit">厘米</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label>网格宽度：</label>
+              <div class="input-with-unit">
+                <input
+                  type="number"
+                  v-model.number="gridWidth"
+                  min="1"
+                  class="setting-input"
+                  step="0.1"
+                >
+                <span class="unit">厘米</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-buttons">
+          <button @click="showSettingsDialog = false" class="dialog-btn cancel-btn">取消</button>
+          <button @click="saveSettings" class="dialog-btn confirm-btn">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 校准弹窗 -->
+    <div v-if="showCalibrationDialog" class="dialog-overlay">
+      <div class="dialog calibration-dialog">
+        <h3 class="dialog-title">校准设置</h3>
+        <div class="dialog-content">
+          <div class="calibration-controls">
+            <div class="calibration-item">
+              <label>校准值 1：</label>
+              <div class="slider-with-value">
+                <input
+                  type="range"
+                  v-model.number="calibrationValue1"
+                  min="0"
+                  max="180"
+                  :step="currentCalibrationPrecision"
+                  class="calibration-slider"
+                >
+                <span class="slider-value">{{ calibrationValue1 }}</span>
+              </div>
+            </div>
+            <div class="calibration-item">
+              <label>校准值 2：</label>
+              <div class="slider-with-value">
+                <input
+                  type="range"
+                  v-model.number="calibrationValue2"
+                  min="0"
+                  max="180"
+                  :step="currentCalibrationPrecision"
+                  class="calibration-slider"
+                >
+                <span class="slider-value">{{ calibrationValue2 }}</span>
+              </div>
+            </div>
+            <div class="precision-control">
+              <label>滑动精度：</label>
+              <div class="precision-options">
+                <select
+                  v-model="calibrationPrecision"
+                  class="precision-select"
+                  @change="usePresetPrecision"
+                >
+                  <option value="0.1">0.1</option>
+                  <option value="1">1</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="custom">自定义</option>
+                </select>
+
+                <div v-if="calibrationPrecision === 'custom'" class="custom-precision">
+                  <input
+                    type="number"
+                    v-model.number="customCalibrationPrecision"
+                    min="0.01"
+                    max="50"
+                    step="0.01"
+                    class="custom-precision-input"
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-buttons">
+          <button @click="showCalibrationDialog = false" class="dialog-btn cancel-btn">关闭</button>
+          <button @click="confirmCalibration" class="dialog-btn confirm-btn">确认</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
+import axios from 'axios';  // 引入axios用于网络请求
+
+// 新增的设置相关响应式数据
+const showSettingsDialog = ref(false);
+const height = ref(100);  // 高度默认值，单位：厘米
+const distance = ref(50); // 距离默认值，单位：厘米
+const gridWidth = ref(10); // 网格宽度默认值，单位：厘米
+
+// 校准相关状态
+const showCalibrationDialog = ref(false);
+const calibrationValue1 = ref(90); // 第一个校准值，默认90
+const calibrationValue2 = ref(90); // 第二个校准值，默认90
+const calibrationPrecision = ref('1'); // 校准精度，默认1
+const customCalibrationPrecision = ref(0.5); // 自定义校准精度
+
+// 计算当前使用的校准精度
+const currentCalibrationPrecision = computed(() => {
+  return calibrationPrecision.value === 'custom'
+    ? customCalibrationPrecision.value
+    : parseFloat(calibrationPrecision.value);
+});
 
 // 预设阵型的逻辑坐标（基于10×10画布，原点在左上角）
 const presetShapes = {
@@ -193,7 +348,7 @@ const presetShapes = {
   ],
 };
 
-// 响应式数据
+// 原有响应式数据保持不变
 const activeShape = ref(null); // 当前选中的预设阵型
 const customPoints = ref([]); // 自定义绘制的点
 const canvasRef = ref(null); // Canvas DOM 引用
@@ -215,15 +370,54 @@ const hasPoints = computed(() => {
   return activeShape.value ? presetShapes[activeShape.value].length > 0 : customPoints.value.length > 0;
 });
 
-// 获取当前所有点
+// 使用预设精度
+const usePresetPrecision = () => {
+  // 当选择预设精度时，设置自定义输入框的默认值
+  if (calibrationPrecision.value !== 'custom') {
+    customCalibrationPrecision.value = parseFloat(calibrationPrecision.value);
+  }
+};
+
+// 新增的设置相关方法
+const saveSettings = () => {
+  // 保存设置的逻辑，可以根据需要发送到后端或本地存储
+  console.log('保存设置:', {
+    height: height.value,
+    distance: distance.value,
+    gridWidth: gridWidth.value
+  });
+
+  // 这里可以添加保存成功的提示
+  alert('设置已保存');
+  showSettingsDialog.value = false;
+
+  // 如果网格宽度改变，可能需要重新初始化画布
+  if (canvasLoaded.value) {
+    initCanvas();
+  }
+};
+
+// 校准相关方法
+const confirmCalibration = () => {
+  // 处理校准值的逻辑
+  console.log('校准值已确认:', {
+    value1: calibrationValue1.value,
+    value2: calibrationValue2.value,
+    precision: currentCalibrationPrecision.value
+  });
+
+  // 这里可以添加实际的校准逻辑，比如发送到后端
+  alert(`校准已完成：值1=${calibrationValue1.value}, 值2=${calibrationValue2.value}, 精度=${currentCalibrationPrecision.value}`);
+  showCalibrationDialog.value = false;
+};
+
+// 原有方法保持不变
 const getCurrentPoints = () => {
   return activeShape.value ? [...presetShapes[activeShape.value]] : [...customPoints.value];
 };
 
-// 设置当前所有点
 const setCurrentPoints = (points) => {
   if (activeShape.value) {
-    // 对于预设形状，复制到自定义点并切换到自定义模式
     customPoints.value = points;
     activeShape.value = null;
   } else {
@@ -231,7 +425,6 @@ const setCurrentPoints = (points) => {
   }
 };
 
-// 页面挂载时初始化画布
 onMounted(() => {
   nextTick(() => {
     checkAndInitCanvas();
@@ -239,19 +432,16 @@ onMounted(() => {
   });
 });
 
-// 监听canvasRef变化
 watch(canvasRef, (newVal) => {
   if (newVal && !canvasLoaded.value) {
     checkAndInitCanvas();
   }
 });
 
-// 页面卸载时清理事件
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
-// 检查并初始化画布
 const checkAndInitCanvas = () => {
   if (canvasRef.value) {
     initCanvas();
@@ -269,7 +459,6 @@ const checkAndInitCanvas = () => {
   }
 };
 
-// 初始化画布
 const initCanvas = () => {
   const canvas = canvasRef.value;
   if (!canvas) return;
@@ -322,14 +511,12 @@ const initCanvas = () => {
   }
 };
 
-// 窗口 resize 时重绘画布
 const handleResize = () => {
   if (canvasLoaded.value) {
     initCanvas();
   }
 };
 
-// 绘制画布
 const drawCanvas = () => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
@@ -344,7 +531,6 @@ const drawCanvas = () => {
   }
 };
 
-// 绘制辅助网格
 const drawGrid = () => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
@@ -385,7 +571,6 @@ const drawGrid = () => {
   ctx.value.stroke();
 };
 
-// 绘制点
 const drawPoints = (points) => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value || !points.length) return;
@@ -417,21 +602,18 @@ const drawPoints = (points) => {
   });
 };
 
-// 切换预设阵型
 const selectShape = (shape) => {
   activeShape.value = shape;
   customPoints.value = [];
   drawCanvas();
 };
 
-// 清除阵型
 const clearShape = () => {
   activeShape.value = null;
   customPoints.value = [];
   drawCanvas();
 };
 
-// 画布点击事件
 const handleCanvasClick = (e) => {
   const canvas = canvasRef.value;
   if (!canvas || !ctx.value) return;
@@ -461,8 +643,7 @@ const handleCanvasClick = (e) => {
   drawCanvas();
 };
 
-// 确认自定义阵型
-const confirmCustom = () => {
+const confirmCustom = async () => {
   const points = activeShape.value ? presetShapes[activeShape.value] : customPoints.value;
 
   if (points.length === 0) {
@@ -470,40 +651,53 @@ const confirmCustom = () => {
     return;
   }
 
-  console.log('确认的阵型坐标：', points);
-  alert('已确认阵型，坐标信息已打印到控制台～');
+  try {
+    alert('正在发送数据到后端...');
+
+    const response = await axios.post('http://localhost:5000/api/send-pattern', {
+      points: points
+    });
+
+    if (response.data.success) {
+      alert('数据已成功发送到后端！');
+      console.log('发送成功，后端响应：', response.data);
+    } else {
+      alert(`发送失败：${response.data.message}`);
+    }
+  } catch (error) {
+    console.error('发送数据时发生错误：', error);
+    alert('发送数据失败，请检查后端服务是否正常运行');
+  }
 };
 
-// 应用平移
 const applyTranslate = () => {
   const points = getCurrentPoints();
   if (!points.length) return;
 
   let newPoints = [];
 
-  // 根据方向平移点
   switch (translateDirection.value) {
     case 'up':
       newPoints = points.map(point => ({
         x: point.x,
-        y: Math.max(0, point.y - translateSteps.value) // 确保不超出上边界
+        y: Math.max(0, point.y - translateSteps.value)
       }));
       break;
     case 'down':
       newPoints = points.map(point => ({
         x: point.x,
-        y: Math.min(canvasSize.value.height - 1, point.y + translateSteps.value) // 确保不超出下边界
+        y: Math.min(canvasSize.value.height - 1, point.y + translateSteps.value)
       }));
       break;
     case 'left':
       newPoints = points.map(point => ({
-        x: Math.max(0, point.x - translateSteps.value), // 确保不超出左边界
+        x: Math.max(0, point.x - translateSteps.value),
         y: point.y
       }));
       break;
     case 'right':
       newPoints = points.map(point => ({
-        x: Math.min(canvasSize.value.width - 1, point.x + translateSteps.value), // 确保不超出右边界
+        x: Math.min(canvasSize.value.width - 1, point.x + translateSteps.value),
         y: point.y
       }));
       break;
@@ -514,40 +708,31 @@ const applyTranslate = () => {
   drawCanvas();
 };
 
-// 应用旋转
 const applyRotate = () => {
   const points = getCurrentPoints();
   if (!points.length) return;
 
-  // 计算旋转中心（画布中心）
   const centerX = canvasSize.value.width / 2;
   const centerY = canvasSize.value.height / 2;
 
-  // 转换角度为弧度
   let angle = (parseInt(rotateAngle.value) * Math.PI) / 180;
-  // 逆时针旋转需要取负角度
   if (rotateDirection.value === 'counterclockwise') {
     angle = -angle;
   }
 
-  // 对每个点应用旋转变换
   const newPoints = points.map(point => {
-    // 平移到原点（相对于中心）
     const x = point.x - centerX;
     const y = point.y - centerY;
 
-    // 旋转公式
     const rotatedX = x * Math.cos(angle) - y * Math.sin(angle);
     const rotatedY = x * Math.sin(angle) + y * Math.cos(angle);
 
-    // 平移回原坐标系并四舍五入
     return {
       x: Math.round(rotatedX + centerX),
       y: Math.round(rotatedY + centerY)
     };
   });
 
-  // 确保所有点都在画布范围内
   const clampedPoints = newPoints.map(point => ({
     x: Math.max(0, Math.min(canvasSize.value.width - 1, point.x)),
     y: Math.max(0, Math.min(canvasSize.value.height - 1, point.y))
@@ -560,7 +745,6 @@ const applyRotate = () => {
 </script>
 
 <style scoped>
-/* 原有样式保持不变 */
 canvas {
   touch-action: none;
   width: 100% !important;
@@ -606,6 +790,49 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+/* 新增的设置和校准按钮样式 */
+.settings-calibration-buttons {
+  display: flex;
+  gap: 0.8rem;
+  width: 100%;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+.settings-btn, .calibration-btn {
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.6rem;
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
+}
+
+.settings-btn {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #ffffff;
+}
+
+.settings-btn:hover {
+  background: linear-gradient(135deg, #fcd34d, #d97706);
+  box-shadow: 0 8px 16px -1px rgba(245, 158, 11, 0.25);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.calibration-btn {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: #ffffff;
+}
+
+.calibration-btn:hover {
+  background: linear-gradient(135deg, #f472b6, #be185d);
+  box-shadow: 0 8px 16px -1px rgba(236, 72, 153, 0.25);
+  transform: translateY(-2px) scale(1.03);
 }
 
 .preset-btn-group {
@@ -773,7 +1000,6 @@ canvas:hover {
   }
 }
 
-/* 新增的变换按钮样式 */
 .transform-btn-group {
   display: flex;
   gap: 0.8rem;
@@ -889,7 +1115,7 @@ canvas:hover {
 }
 
 /* 平移控制样式 */
-.translate-controls, .rotate-controls {
+.translate-controls, .rotate-controls, .settings-controls, .calibration-controls {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -928,26 +1154,129 @@ canvas:hover {
   border-color: #3b82f6;
 }
 
-.steps-control, .angle-control {
+.steps-control, .angle-control, .setting-item, .precision-control {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.steps-control label, .angle-control label {
+.steps-control label, .angle-control label, .setting-item label, .precision-control label {
   font-weight: 500;
   color: #334155;
   min-width: 80px;
 }
 
-.steps-input, .angle-select {
+.steps-input, .angle-select, .setting-input, .precision-select {
   flex: 1;
   padding: 0.5rem;
   border-radius: 0.4rem;
   border: 1px solid #e2e8f0;
 }
 
-.angle-select {
+.angle-select, .precision-select {
   background-color: white;
+}
+
+/* 新增的设置弹窗样式 */
+.settings-dialog .dialog-content {
+  padding: 1.5rem;
+}
+
+.setting-item {
+  margin-bottom: 1rem;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.setting-input {
+  flex: 1;
+  padding-right: 50px; /* 为单位预留空间 */
+}
+
+.unit {
+  position: relative;
+  right: 40px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+/* 校准弹窗样式 */
+.calibration-dialog .dialog-content {
+  padding: 1.5rem;
+}
+
+.calibration-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.calibration-item label {
+  font-weight: 500;
+  color: #334155;
+}
+
+.slider-with-value {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.calibration-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.calibration-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calibration-slider::-webkit-slider-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+}
+
+.slider-value {
+  min-width: 40px;
+  text-align: center;
+  font-weight: 500;
+  color: #3b82f6;
+}
+
+/* 精度选择相关样式 */
+.precision-options {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.custom-precision {
+  flex: 1;
+}
+
+.custom-precision-input {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #e2e8f0;
 }
 </style>
