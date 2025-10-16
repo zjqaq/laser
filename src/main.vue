@@ -172,11 +172,24 @@
               </div>
             </div>
             <div class="setting-item">
-              <label>距离：</label>
+              <label>X方向距离：</label>
               <div class="input-with-unit">
                 <input
                   type="number"
-                  v-model.number="distance"
+                  v-model.number="distanceX"
+                  min="1"
+                  class="setting-input"
+                  step="0.1"
+                >
+                <span class="unit">厘米</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label>Y方向距离：</label>
+              <div class="input-with-unit">
+                <input
+                  type="number"
+                  v-model.number="distanceY"
                   min="1"
                   class="setting-input"
                   step="0.1"
@@ -212,8 +225,24 @@
         <h3 class="dialog-title">校准设置</h3>
         <div class="dialog-content">
           <div class="calibration-controls">
+            <!-- 新增的云台选择按钮组 -->
+            <div class="gimbal-selection">
+              <label class="gimbal-label">选择云台 (1-8)：</label>
+              <div class="gimbal-buttons">
+                <button
+                  v-for="i in 8"
+                  :key="i"
+                  @click="selectGimbal(i)"
+                  :class="selectedGimbal === i ? 'active' : ''"
+                  class="gimbal-btn"
+                >
+                  {{ i }}
+                </button>
+              </div>
+            </div>
+
             <div class="calibration-item">
-              <label>校准值 1：</label>
+              <label>底座：</label>
               <div class="slider-with-value">
                 <input
                   type="range"
@@ -227,7 +256,7 @@
               </div>
             </div>
             <div class="calibration-item">
-              <label>校准值 2：</label>
+              <label>摇臂：</label>
               <div class="slider-with-value">
                 <input
                   type="range"
@@ -285,11 +314,13 @@ import axios from 'axios';  // 引入axios用于网络请求
 // 新增的设置相关响应式数据
 const showSettingsDialog = ref(false);
 const height = ref(100);  // 高度默认值，单位：厘米
-const distance = ref(50); // 距离默认值，单位：厘米
+const distanceX = ref(50); // X方向距离默认值，单位：厘米
+const distanceY = ref(50); // Y方向距离默认值，单位：厘米
 const gridWidth = ref(10); // 网格宽度默认值，单位：厘米
 
 // 校准相关状态
 const showCalibrationDialog = ref(false);
+const selectedGimbal = ref(1); // 当前选中的云台，默认1
 const calibrationValue1 = ref(90); // 第一个校准值，默认90
 const calibrationValue2 = ref(90); // 第二个校准值，默认90
 const calibrationPrecision = ref('1'); // 校准精度，默认1
@@ -378,12 +409,20 @@ const usePresetPrecision = () => {
   }
 };
 
+// 选择云台
+const selectGimbal = (index) => {
+  selectedGimbal.value = index;
+  // 这里可以添加切换云台时的逻辑，比如加载该云台的校准值
+  console.log(`已选择云台 ${index}`);
+};
+
 // 新增的设置相关方法
 const saveSettings = () => {
   // 保存设置的逻辑，可以根据需要发送到后端或本地存储
   console.log('保存设置:', {
     height: height.value,
-    distance: distance.value,
+    distanceX: distanceX.value,
+    distanceY: distanceY.value,
     gridWidth: gridWidth.value
   });
 
@@ -400,14 +439,14 @@ const saveSettings = () => {
 // 校准相关方法
 const confirmCalibration = () => {
   // 处理校准值的逻辑
-  console.log('校准值已确认:', {
+  console.log(`云台 ${selectedGimbal.value} 校准值已确认:`, {
     value1: calibrationValue1.value,
     value2: calibrationValue2.value,
     precision: currentCalibrationPrecision.value
   });
 
   // 这里可以添加实际的校准逻辑，比如发送到后端
-  alert(`校准已完成：值1=${calibrationValue1.value}, 值2=${calibrationValue2.value}, 精度=${currentCalibrationPrecision.value}`);
+  alert(`云台 ${selectedGimbal.value} 校准已完成：值1=${calibrationValue1.value}, 值2=${calibrationValue2.value}, 精度=${currentCalibrationPrecision.value}`);
   showCalibrationDialog.value = false;
 };
 
@@ -1211,6 +1250,40 @@ canvas:hover {
 /* 校准弹窗样式 */
 .calibration-dialog .dialog-content {
   padding: 1.5rem;
+}
+
+/* 新增的云台选择样式 */
+.gimbal-selection {
+  margin-bottom: 1rem;
+}
+
+.gimbal-label {
+  display: block;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.gimbal-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.gimbal-btn {
+  padding: 0.6rem 0;
+  border-radius: 0.4rem;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.gimbal-btn.active {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
 }
 
 .calibration-item {
